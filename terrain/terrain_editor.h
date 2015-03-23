@@ -15,12 +15,15 @@ class TerrainEditor : public VBoxContainer {
         MODE_MODIFY_HEIGHT,
         MODE_SMOOTH_TERRAIN,
         MODE_SET_HEIGHT,
+        MODE_EDIT_BLENDMAP,
     };
 
     enum Menu {
         MENU_OPTION_MODIFY,
         MENU_OPTION_SMOOTH,
         MENU_OPTION_SET,
+        // ---------------
+        MENU_OPTION_PAINT,
         // ---------------
         MENU_OPTION_SQUARE,
         MENU_OPTION_CIRCLE,
@@ -62,6 +65,7 @@ private:
     MenuButton* m_menu;
     SpinBox* m_brush_strength;
     SpinBox* m_brush_size;
+    ColorPickerButton* m_color_picker;
 
     /* editing */
 
@@ -70,11 +74,12 @@ private:
     float m_brush_w;
     float m_brush_h;
     Brush m_current_brush;
+    bool m_mouse_down;
 
     void make_ui();
     bool do_input_action(Camera* cam, int x, int y);
-    void handle_mouse_pressed(Camera* c, const InputEvent& e);
-    void modify_terrain(unsigned int x, unsigned int y, float h);
+    void handle_input_event(Camera* c, const InputEvent& e);
+    void modify_terrain(Vector3 intersection, const InputEvent &e);
 
     void create_square_brush(int w, int h);
     void create_circle_brush(int w, int h);

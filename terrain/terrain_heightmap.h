@@ -3,6 +3,7 @@
 
 #include "resource.h"
 #include "dictionary.h"
+#include "servers/visual_server.h"
 
 class TerrainHeightmap : public Resource {
     OBJ_TYPE(TerrainHeightmap, Resource)
@@ -12,32 +13,34 @@ public:
     TerrainHeightmap();
     ~TerrainHeightmap();
 
-    static void _bind_methods();
+    void set_size(int new_size);
+    int get_size() const;
 
-    void create(const Size2& p_size);
+    float get_height(int x, int y);
+    void set_height(int x, int y, float height);
+    void blit_height(DVector<float>& data, int x1, int y1, int x2, int y2);
+    void blend_height(DVector<float>& data, int x1, int y1, int x2, int y2, float alpha);
 
-    void set_width(unsigned int new_width);
-    void set_height(unsigned int new_height);
+    Color get_blend(int x, int y);
+    void set_blend(int x, int y, Color c);
 
-    unsigned int get_width();
-    unsigned int get_height();
-
-    Size2 get_size() const;
-
-    float get_pixel(unsigned int x, unsigned int y);
-    void put_pixel(unsigned int x, unsigned int y, float height);
-    void blit(DVector<float>& data, unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2);
-    void blend(DVector<float>& data, unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2, float alpha);
+    Image get_blends();
+    RID get_texture();
 
 private:
-    unsigned int m_width;
-    unsigned int m_height;
-    DVector<float> m_pixels;
+    int m_size;
+    DVector<float> m_heights;
+    Image m_blends;
+    RID m_texture;
+    uint32_t m_flags;
 
-    void _resize();
+    void _size_changed();
+
 protected:
-    void _set_data(const Dictionary& data);
-    Dictionary _get_data() const;
+    void _set_data(Dictionary data);
+    Dictionary _get_data();
+    static void _bind_methods();
+
 };
 
 #endif // _TERRAIN_HEIGHTMAP_H

@@ -5,6 +5,7 @@
 #include "terrain_material.h"
 #include "terrain_editor.h"
 #include "terrain_heightmap.h"
+#include "terrain_blendmap.h"
 #endif // _3D_DISABLED
 
 void register_terrain_types()
@@ -13,6 +14,7 @@ void register_terrain_types()
     ObjectTypeDB::register_type<TerrainNode>();
     ObjectTypeDB::register_type<TerrainMaterial>();
     ObjectTypeDB::register_type<TerrainHeightmap>();
+    ObjectTypeDB::register_type<TerrainBlendmap>();
 #ifdef TOOLS_ENABLED
     EditorPlugins::add_by_type<TerrainEditorPlugin>();
 #endif // tools

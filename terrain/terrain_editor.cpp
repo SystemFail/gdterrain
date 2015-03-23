@@ -15,6 +15,7 @@ TerrainEditor::TerrainEditor(EditorNode* editor)
     m_current_brush = BRUSH_NONE;
     m_brush_w = 3;
     m_brush_h = 3;
+    m_mouse_down = false;
 
     make_ui();
 
@@ -35,14 +36,21 @@ bool TerrainEditor::forward_spatial_input_event(Camera* c, const InputEvent& e)
 
         if (e.mouse_button.pressed) {
             if (e.mouse_button.button_index == BUTTON_LEFT) {
-                handle_mouse_pressed(c, e);
+                handle_input_event(c, e);
             }
+            m_mouse_down = true;
+        }
+        else {
+            m_mouse_down = false;
         }
 
         break;
     }
     case InputEvent::MOUSE_MOTION: {
 
+        if (m_mouse_down) {
+            handle_input_event(c, e);
+        }
         break;
     }
     }
@@ -80,6 +88,10 @@ void TerrainEditor::_menu_option(int option)
         m_current_mode = MODE_SMOOTH_TERRAIN;
         break;
     }
+    case MENU_OPTION_PAINT: {
+        m_current_mode = MODE_EDIT_BLENDMAP;
+        break;
+    }
     case MENU_OPTION_SQUARE: {
         change_brush(BRUSH_SQUARE);
         break;
@@ -96,7 +108,6 @@ void TerrainEditor::_menu_option(int option)
         change_brush(BRUSH_NOISE);
         break;
     }
-
     }
 }
 
@@ -139,6 +150,8 @@ void TerrainEditor::make_ui()
     m_menu->get_popup()->add_item("Set height", MENU_OPTION_SET);
     m_menu->get_popup()->add_item("Smooth", MENU_OPTION_SMOOTH);
     m_menu->get_popup()->add_separator();
+    m_menu->get_popup()->add_item("Paint", MENU_OPTION_PAINT);
+    m_menu->get_popup()->add_separator();
     m_menu->get_popup()->add_item("Square", MENU_OPTION_SQUARE);
     m_menu->get_popup()->add_item("Circle", MENU_OPTION_CIRCLE);
     m_menu->get_popup()->add_item("Smooth circle", MENU_OPTION_SMOOTH_CIRCLE);
@@ -161,14 +174,17 @@ void TerrainEditor::make_ui()
     m_brush_size->connect("value_changed", this, "_brush_size_changed");
     m_menubar->add_child(m_brush_size);
 
+    m_color_picker = memnew(ColorPickerButton);
+    m_color_picker->set_custom_minimum_size(Size2(30, 0));
+    m_menubar->add_child(m_color_picker);
 }
 
 bool TerrainEditor::do_input_action(Camera* cam, int x, int y)
 {
-    //
+    return true;
 }
 
-void TerrainEditor::handle_mouse_pressed(Camera* c, const InputEvent& e)
+void TerrainEditor::handle_input_event(Camera* c, const InputEvent& e)
 {
     Point2 point = Point2(e.mouse_button.x, e.mouse_button.y);
     Vector3 from = c->project_ray_origin(point);
@@ -184,38 +200,44 @@ void TerrainEditor::handle_mouse_pressed(Camera* c, const InputEvent& e)
     Vector3 intersection;
 
     if (plane.intersects_ray(from, normal, &intersection)) {
-        unsigned int x = m_terrain->get_pixel_x_at(intersection);
-        unsigned int y = m_terrain->get_pixel_y_at(intersection);
-        float height = m_terrain->get_height_at(intersection);
-
-        modify_terrain(x, y, height);
+        modify_terrain(intersection, e);
     }
 }
 
-void TerrainEditor::modify_terrain(unsigned int x, unsigned int y, float h)
+void TerrainEditor::modify_terrain(Vector3 intersection, const InputEvent& e)
 {
+    int hx = m_terrain->get_pixel_x_at(intersection, 0.5f);
+    int hy = m_terrain->get_pixel_y_at(intersection, 0.5f);
+    int bx = m_terrain->get_pixel_x_at(intersection, 0.0f);
+    int by = m_terrain->get_pixel_y_at(intersection, 0.0f);
+
     // center brush
-    x -= m_brush_w / 2.0f;
-    y -= m_brush_h / 2.0f;
+    hx -= m_brush_w / 2.0f;
+    hy -= m_brush_h / 2.0f;
 
     switch (m_current_mode) {
 
     case MODE_MODIFY_HEIGHT: {
 
-        m_terrain->blend(m_brush_pixels, x, y, x + m_brush_w, y + m_brush_h,
-            (float)m_brush_strength->get_val() * 0.1);
-
+        if (e.type == InputEvent::MOUSE_BUTTON) {
+            m_terrain->blend(m_brush_pixels, hx, hy, hx + m_brush_w, hy + m_brush_h, (float)m_brush_strength->get_val() * 0.1);
+        }
         break;
     }
 
     case MODE_SET_HEIGHT: {
 
-        m_terrain->blit(m_brush_pixels, x, y, x + m_brush_w, y + m_brush_h);
+        m_terrain->blit(m_brush_pixels, hx, hy, hx + m_brush_w, hy + m_brush_h);
 
         break;
     }
 
     case MODE_SMOOTH_TERRAIN: {
+        break;
+    }
+    case MODE_EDIT_BLENDMAP: {
+        Color c = m_color_picker->get_color();
+        m_terrain->modify_blendmap_at(bx, by, c);
         break;
     }
     }
@@ -232,25 +254,18 @@ void TerrainEditor::create_square_brush(int w, int h)
     for (int i = 0; i < m_brush_pixels.size(); i++) {
         w_brush[i] = 1.0f;
     }
-
-    make_ui();
 }
 
 void TerrainEditor::create_circle_brush(int w, int h)
 {
-    float r = w / 2.0f;
-    float rx = w / 2.0f;
-    float ry = h / 2.0f;
 }
 
 void TerrainEditor::create_smooth_circle_brush(int w, int h)
 {
-
 }
 
 void TerrainEditor::create_noise_brush(int w, int h)
 {
-
 }
 
 void TerrainEditor::_brush_size_changed(int value)
@@ -286,7 +301,6 @@ void TerrainEditor::change_brush(TerrainEditor::Brush new_brush)
     case BRUSH_NOISE: {
         break;
     }
-
     }
 }
 
