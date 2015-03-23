@@ -5,7 +5,6 @@ TerrainHeightmap::TerrainHeightmap()
     m_size = 0;
     m_flags = VS::TEXTURE_FLAG_FILTER;
     m_texture = VS::get_singleton()->texture_create();
-    m_blends.create(m_size, m_size, false, Image::FORMAT_RGBA);
 }
 
 TerrainHeightmap::~TerrainHeightmap()
@@ -15,6 +14,10 @@ TerrainHeightmap::~TerrainHeightmap()
 
 void TerrainHeightmap::set_size(int new_size)
 {
+    if (new_size == m_size) {
+        return;
+    }
+
     m_size = new_size;
 
     _size_changed();
@@ -150,8 +153,8 @@ int TerrainHeightmap::get_size() const
 void TerrainHeightmap::_set_data(Dictionary data)
 {
     m_size = data["size"];
-    m_heights = data["data"];
-    m_blends = data["blends"];
+    m_heights = data["heights"];
+    m_blends.create(m_size, m_size, false, Image::FORMAT_RGBA, data["blends"]);
 
     VS::get_singleton()->texture_allocate(m_texture, m_size, m_size, m_blends.get_format(), m_flags);
     VS::get_singleton()->texture_set_data(m_texture, m_blends);
@@ -162,8 +165,8 @@ Dictionary TerrainHeightmap::_get_data()
     Dictionary d;
 
     d["size"] = m_size;
-    d["data"] = m_heights;
-    d["blends"] = m_blends;
+    d["heights"] = m_heights;
+    d["blends"] = m_blends.get_data();
 
     return d;
 }

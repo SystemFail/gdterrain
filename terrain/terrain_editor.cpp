@@ -48,7 +48,7 @@ bool TerrainEditor::forward_spatial_input_event(Camera* c, const InputEvent& e)
     }
     case InputEvent::MOUSE_MOTION: {
 
-        if (m_mouse_down) {
+        if (m_mouse_down && (e.mouse_button.button_index == BUTTON_LEFT)) {
             handle_input_event(c, e);
         }
         break;

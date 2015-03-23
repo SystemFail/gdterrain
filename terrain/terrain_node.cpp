@@ -3,38 +3,39 @@
 #include "servers/visual_server.h"
 #include "os/os.h"
 
+static const char* frag_shader = "uniform texture blendmap;"
+"uniform texture texture0;"
+"uniform texture texture1;"
+"uniform texture texture2;"
+"uniform texture texture3;"
+"uniform texture texture4;"
+"uniform float s;"
+"vec2 coord = s * UV;"
+"vec3 sample0 = tex(texture0, coord).rgb;"
+"vec3 sample1 = tex(texture1, coord).rgb;"
+"vec3 sample2 = tex(texture2, coord).rgb;"
+"vec3 sample3 = tex(texture3, coord).rgb;"
+"vec3 sample4 = tex(texture4, coord).rgb;"
+"vec4 blend = tex(blendmap, UV).rgba;"
+"vec3 c = sample0;"
+"c = mix(c, sample1, blend.r);"
+"c = mix(c, sample2, blend.g);"
+"c = mix(c, sample3, blend.b);"
+"c = mix(c, sample4, blend.a);"
+"DIFFUSE = c;";
+
+static const char* vert_shader = "";
+
 TerrainNode::TerrainNode()
 {
-    const String frag_code = String(
-        "uniform texture blendmap;"
-        "uniform texture texture0;"
-        "uniform texture texture1;"
-        "uniform texture texture2;"
-        "uniform texture texture3;"
-        "uniform texture texture4;"
-        "uniform float s;"
-        "vec2 coord = s * UV;"
-        "vec3 sample0 = tex(texture0, coord).rgb;"
-        "vec3 sample1 = tex(texture1, coord).rgb;"
-        "vec3 sample2 = tex(texture2, coord).rgb;"
-        "vec3 sample3 = tex(texture3, coord).rgb;"
-        "vec3 sample4 = tex(texture4, coord).rgb;"
-        "vec4 blend = tex(blendmap, UV).rgba;"
-        "vec3 c = sample0;"
-        "c = mix(c, sample1, blend.r);"
-        "c = mix(c, sample2, blend.g);"
-        "c = mix(c, sample3, blend.b);"
-        "c = mix(c, sample4, blend.a);"
-        "DIFFUSE = c;"
-        );
     m_scale = 1.0;
-    m_chunk_size = 32;
+    m_chunk_size = 16;
     m_uv_scale = 10.0;
     m_chunk_count = 0;
     m_chunks_created = false;
     m_material = VS::get_singleton()->material_create();
     m_shader = VS::get_singleton()->shader_create();
-    VS::get_singleton()->shader_set_code(m_shader, "", frag_code, "");
+    VS::get_singleton()->shader_set_code(m_shader, "", frag_shader, "");
     VS::get_singleton()->material_set_shader(m_material, m_shader);
     VS::get_singleton()->material_set_param(m_material, "s", m_uv_scale);
 }
@@ -441,17 +442,19 @@ void TerrainNode::_update_chunk_mesh(int ch_offset)
 
     normals.resize(vert_count);
     DVector<Vector3>::Write normalsw = normals.write();
+    DVector<Vector3>::Read pointsr = points.read();
+    DVector<int>::Read indicesr = indices.read();
 
     for (int i = 0; i < indices.size(); i += 3) {
-        Vector3 v0 = points[indices[i + 0]];
-        Vector3 v1 = points[indices[i + 1]];
-        Vector3 v2 = points[indices[i + 2]];
+        Vector3 v0 = pointsr[indicesr[i + 0]];
+        Vector3 v1 = pointsr[indicesr[i + 1]];
+        Vector3 v2 = pointsr[indicesr[i + 2]];
 
         Vector3 normal = Plane(v0, v1, v2).normal;
 
-        normalsw[indices[i + 0]] += normal;
-        normalsw[indices[i + 1]] += normal;
-        normalsw[indices[i + 2]] += normal;
+        normalsw[indicesr[i + 0]] += normal;
+        normalsw[indicesr[i + 1]] += normal;
+        normalsw[indicesr[i + 2]] += normal;
     }
 
     for (int i = 0; i < normals.size(); i++) {
@@ -577,10 +580,10 @@ void TerrainNode::_heightmap_changed()
     }
 
     int wmap_size = m_heightmap->get_size();
-
     m_chunk_count = wmap_size / m_chunk_size;
-
     m_chunks.resize(m_chunk_count * m_chunk_count);
+
+    VS::get_singleton()->material_set_param(m_material, "blendmap", m_heightmap->get_texture());
 
     if (!is_inside_tree()) {
         return;
@@ -599,9 +602,6 @@ void TerrainNode::_heightmap_changed()
     }
 
     m_chunks_created = true;
-
-    VS::get_singleton()->material_set_param(m_material, "blendmap", m_heightmap->get_texture());
-
 
     _update_chunks();
 }
