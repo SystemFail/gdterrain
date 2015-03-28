@@ -3,8 +3,29 @@
 
 #include "rid.h"
 #include "scene/3d/spatial.h"
-#include "terrain_heightmap.h"
+#include "terrain_data.h"
 #include "scene/resources/texture.h"
+#include "os/os.h"
+
+class Clock {
+    uint32_t m_time;
+
+public:
+    Clock()
+    {
+        m_time = OS::get_singleton()->get_ticks_msec();
+    }
+
+    void check(String s)
+    {
+        m_time = OS::get_singleton()->get_ticks_msec() - m_time;
+        print_line(s + ": " + itos(m_time) + " ms.");
+    }
+
+    ~Clock()
+    {
+    }
+};
 
 class TerrainNode : public Spatial {
     OBJ_TYPE(TerrainNode, Spatial)
@@ -12,6 +33,7 @@ class TerrainNode : public Spatial {
     struct Chunk {
         RID mesh;
         RID instance;
+        RID shape;
         bool surface_added;
         bool mesh_dirty;
         bool material_dirty;
@@ -22,8 +44,8 @@ public:
     TerrainNode();
     virtual ~TerrainNode();
 
-    void set_heightmap(const Ref<TerrainHeightmap>& heightmap);
-    Ref<TerrainHeightmap> get_heightmap() const;
+    void set_data(const Ref<TerrainData>& heightmap);
+    Ref<TerrainData> get_data() const;
 
     void set_texture0(const Ref<Texture>& texture);
     void set_texture1(const Ref<Texture>& texture);
@@ -31,55 +53,45 @@ public:
     void set_texture3(const Ref<Texture>& texture);
     void set_texture4(const Ref<Texture>& texture);
 
-    Ref<Texture> get_texture0();
-    Ref<Texture> get_texture1();
-    Ref<Texture> get_texture2();
-    Ref<Texture> get_texture3();
-    Ref<Texture> get_texture4();
+    Ref<Texture> get_texture0() const;
+    Ref<Texture> get_texture1() const;
+    Ref<Texture> get_texture2() const;
+    Ref<Texture> get_texture3() const;
+    Ref<Texture> get_texture4() const;
 
-    void set_scale(float scale);
-    float get_scale();
+    void set_chunk_scale(const float scale);
+    float get_chunk_scale() const;
 
-    void set_uv_scale(float scale);
+    void set_uv_scale(const float scale);
     float get_uv_scale() const;
 
-    int get_pixel_x_at(Vector3 pos, float offset);
-    int get_pixel_y_at(Vector3 pos, float offset);
-    float get_height_at(Vector3 pos);
+    int get_pixel_x_at(const Vector3 pos, const float offset) const;
+    int get_pixel_y_at(const Vector3 pos, const float offset) const;
 
-    void modify_height_at(int x, int y, float height);
-    void modify_blendmap_at(int x, int y, Color c);
+    void mark_height_dirty(int x, int y);
 
-    void blit(DVector<float>& pixels, int x1, int y1, int x2, int y2);
-    void blend(DVector<float>& pixels, int x1, int y1, int x2, int y2, float alpha);
-
-    Point2i local_to_blendmap(Vector3 pos); // map local(modelspace) position to blendmap pixel
-    Point2i local_to_heightmap(Vector3 pos); // map local(modelspace) position to heightmap pixel
+    void update_dirty_chunks();
 
 private:
-
     void _create_chunk(int offset);
     void _delete_chunk(int offset);
     void _update_chunk_mesh(int ch_offset);
     void _update_chunk_transform(int offset);
     void _update_chunk_blendmap(int offset);
     void _update_chunk_material(int offset);
-    //void _clear_chunk(unsigned int offset);
 
-    void _mark_mesh_dirty(int x, int y);
     void _mark_blend_dirty(int x, int y);
 
     int get_chunk_offset_at(int x, int y);
     bool is_hmap_pixel_inside_chunk(int offset, int x, int y);
 
-    void _update_chunks();
     void _update_material();
     void _chunks_mark_all_dirty();
 
     void _blendmap_changed();
     void _heightmap_changed();
 
-    Ref<TerrainHeightmap> m_heightmap;
+    Ref<TerrainData> m_data;
 
     Ref<Texture> m_texture0;
     Ref<Texture> m_texture1;
@@ -99,11 +111,15 @@ private:
     bool m_chunks_dirty;
     bool m_chunks_created;
 
+    /* physics */
+
+    bool m_generate_collisions;
+    RID m_body;
+
 protected:
     void _notification(int what);
     static void _bind_methods();
     void _size_changed();
-
 };
 
 #endif

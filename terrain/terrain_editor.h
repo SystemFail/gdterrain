@@ -1,4 +1,4 @@
-#ifndef _TARRAIN_EDITOR_H
+#ifndef _TERRAIN_EDITOR_H
 #define _TERRAIN_EDITOR_H
 
 #include "tools/editor/editor_plugin.h"
@@ -29,6 +29,9 @@ class TerrainEditor : public VBoxContainer {
         MENU_OPTION_CIRCLE,
         MENU_OPTION_SMOOTH_CIRCLE,
         MENU_OPTION_NOISE,
+        MENU_OPTION_CUSTOM,
+        // -----------
+        MENU_OPTION_DBG_SAVE,
     };
 
     enum Brush {
@@ -37,6 +40,7 @@ class TerrainEditor : public VBoxContainer {
         BRUSH_CIRCLE,
         BRUSH_SMOOTH_CIRCLE,
         BRUSH_NOISE,
+        BRUSH_CUSTOM,
     };
 
 public:
@@ -49,11 +53,10 @@ public:
 
     void show_menubar(bool visible);
 
-    void _menu_option(int option);
-
 protected:
     void _notifiacation(int what);
     static void _bind_methods();
+    void _menu_option(int option);
 
 private:
     EditorNode* m_editor_node;
@@ -65,29 +68,46 @@ private:
     MenuButton* m_menu;
     SpinBox* m_brush_strength;
     SpinBox* m_brush_size;
+    SpinBox* m_brush_opacity;
     ColorPickerButton* m_color_picker;
+    Tree* m_texture_chooser;
+    VBoxContainer* m_sidebar;
+    HSlider* m_alpha;
+
+    /* sidebar */
+
+    TreeItem* tex0;
+    TreeItem* tex1;
+    TreeItem* tex2;
+    TreeItem* tex3;
+    TreeItem* tex4;
 
     /* editing */
 
     EditMode m_current_mode;
-    DVector<float> m_brush_pixels;
-    float m_brush_w;
-    float m_brush_h;
+    Image m_brush_image;
     Brush m_current_brush;
     bool m_mouse_down;
+    Point2 m_last_pixel_edited;
+    int m_active_texture;
+    int m_size;
+    RID m_cursor_mesh;
+    RID m_cursor;
+    Color m_current_color;
 
-    void make_ui();
-    bool do_input_action(Camera* cam, int x, int y);
-    void handle_input_event(Camera* c, const InputEvent& e);
-    void modify_terrain(Vector3 intersection, const InputEvent &e);
+    void _make_ui();
+    bool _do_input_action(Camera* cam, int x, int y);
+    void _handle_input_event(Camera* c, const InputEvent& e);
+    void _modify_terrain(Vector3 intersection, const InputEvent &e);
 
-    void create_square_brush(int w, int h);
-    void create_circle_brush(int w, int h);
-    void create_smooth_circle_brush(int w, int h);
-    void create_noise_brush(int w, int h);
+    void _create_square_brush();
+    void _create_circle_brush();
+    void _create_smooth_circle_brush();
+    void _create_noise_brush();
 
-    void _brush_size_changed(int value);
-    void change_brush(Brush new_brush);
+    void _on_brush_size_changed(int value);
+    void _on_active_texture_changed();
+    void _brush_changed();
 };
 
 /* plugin */

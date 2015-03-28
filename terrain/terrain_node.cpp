@@ -1,28 +1,28 @@
 #include "terrain_node.h"
 
 #include "servers/visual_server.h"
-#include "os/os.h"
+#include "servers/physics_server.h"
 
 static const char* frag_shader = "uniform texture blendmap;"
-"uniform texture texture0;"
-"uniform texture texture1;"
-"uniform texture texture2;"
-"uniform texture texture3;"
-"uniform texture texture4;"
-"uniform float s;"
-"vec2 coord = s * UV;"
-"vec3 sample0 = tex(texture0, coord).rgb;"
-"vec3 sample1 = tex(texture1, coord).rgb;"
-"vec3 sample2 = tex(texture2, coord).rgb;"
-"vec3 sample3 = tex(texture3, coord).rgb;"
-"vec3 sample4 = tex(texture4, coord).rgb;"
-"vec4 blend = tex(blendmap, UV).rgba;"
-"vec3 c = sample0;"
-"c = mix(c, sample1, blend.r);"
-"c = mix(c, sample2, blend.g);"
-"c = mix(c, sample3, blend.b);"
-"c = mix(c, sample4, blend.a);"
-"DIFFUSE = c;";
+                                 "uniform texture texture0;"
+                                 "uniform texture texture1;"
+                                 "uniform texture texture2;"
+                                 "uniform texture texture3;"
+                                 "uniform texture texture4;"
+                                 "uniform float s;"
+                                 "vec2 coord = s * UV;"
+                                 "vec3 sample0 = tex(texture0, coord).rgb;"
+                                 "vec3 sample1 = tex(texture1, coord).rgb;"
+                                 "vec3 sample2 = tex(texture2, coord).rgb;"
+                                 "vec3 sample3 = tex(texture3, coord).rgb;"
+                                 "vec3 sample4 = tex(texture4, coord).rgb;"
+                                 "vec4 blend = tex(blendmap, UV).rgba;"
+                                 "vec3 c = sample0;"
+                                 "c = mix(c, sample1, blend.r);"
+                                 "c = mix(c, sample2, blend.g);"
+                                 "c = mix(c, sample3, blend.b);"
+                                 "c = mix(c, sample4, blend.a);"
+                                 "DIFFUSE = c;";
 
 static const char* vert_shader = "";
 
@@ -33,17 +33,27 @@ TerrainNode::TerrainNode()
     m_uv_scale = 10.0;
     m_chunk_count = 0;
     m_chunks_created = false;
+    m_generate_collisions = true;
+
+    /* material */
+
     m_material = VS::get_singleton()->material_create();
     m_shader = VS::get_singleton()->shader_create();
-    VS::get_singleton()->shader_set_code(m_shader, "", frag_shader, "");
+    VS::get_singleton()->shader_set_code(m_shader, vert_shader, frag_shader, "");
     VS::get_singleton()->material_set_shader(m_material, m_shader);
     VS::get_singleton()->material_set_param(m_material, "s", m_uv_scale);
+
+    /* physics */
+
+    m_body = PhysicsServer::get_singleton()->body_create();
 }
 
 TerrainNode::~TerrainNode()
 {
     VS::get_singleton()->free(m_shader);
     VS::get_singleton()->free(m_material);
+
+    PhysicsServer::get_singleton()->free(m_body);
 }
 
 void TerrainNode::_notification(int what)
@@ -58,7 +68,7 @@ void TerrainNode::_notification(int what)
 
             m_chunks_created = true;
 
-            _update_chunks();
+            update_dirty_chunks();
         }
 
         break;
@@ -86,95 +96,95 @@ void TerrainNode::_notification(int what)
     }
 }
 
-void TerrainNode::set_heightmap(const Ref<TerrainHeightmap>& heightmap)
+void TerrainNode::set_data(const Ref<TerrainData>& heightmap)
 {
-    if (m_heightmap.is_valid()) {
-        m_heightmap->disconnect("size_changed", this, "_size_changed");
+    if (m_data.is_valid()) {
+        m_data->disconnect("size_changed", this, "_size_changed");
     }
 
-    m_heightmap = heightmap;
+    m_data = heightmap;
 
-    if (m_heightmap.is_valid()) {
-        m_heightmap->connect("size_changed", this, "_size_changed");
+    if (m_data.is_valid()) {
+        m_data->connect("size_changed", this, "_size_changed");
     }
 
     _heightmap_changed();
 }
 
-Ref<TerrainHeightmap> TerrainNode::get_heightmap() const
+Ref<TerrainData> TerrainNode::get_data() const
 {
-    return m_heightmap;
+    return m_data;
 }
 
-void TerrainNode::set_texture0(const Ref<Texture> &texture)
+void TerrainNode::set_texture0(const Ref<Texture>& texture)
 {
     m_texture0 = texture;
     VS::get_singleton()->material_set_param(m_material, "texture0", m_texture0);
 }
 
-void TerrainNode::set_texture1(const Ref<Texture> &texture)
+void TerrainNode::set_texture1(const Ref<Texture>& texture)
 {
     m_texture1 = texture;
     VS::get_singleton()->material_set_param(m_material, "texture1", m_texture1);
 }
 
-void TerrainNode::set_texture2(const Ref<Texture> &texture)
+void TerrainNode::set_texture2(const Ref<Texture>& texture)
 {
     m_texture2 = texture;
     VS::get_singleton()->material_set_param(m_material, "texture2", m_texture2);
 }
 
-void TerrainNode::set_texture3(const Ref<Texture> &texture)
+void TerrainNode::set_texture3(const Ref<Texture>& texture)
 {
     m_texture3 = texture;
     VS::get_singleton()->material_set_param(m_material, "texture3", m_texture3);
 }
 
-void TerrainNode::set_texture4(const Ref<Texture> &texture)
+void TerrainNode::set_texture4(const Ref<Texture>& texture)
 {
     m_texture4 = texture;
     VS::get_singleton()->material_set_param(m_material, "texture4", m_texture4);
 }
 
-Ref<Texture> TerrainNode::get_texture0()
+Ref<Texture> TerrainNode::get_texture0() const
 {
     return m_texture0;
 }
 
-Ref<Texture> TerrainNode::get_texture1()
+Ref<Texture> TerrainNode::get_texture1() const
 {
     return m_texture1;
 }
 
-Ref<Texture> TerrainNode::get_texture2()
+Ref<Texture> TerrainNode::get_texture2() const
 {
     return m_texture2;
 }
 
-Ref<Texture> TerrainNode::get_texture3()
+Ref<Texture> TerrainNode::get_texture3() const
 {
     return m_texture3;
 }
 
-Ref<Texture> TerrainNode::get_texture4()
+Ref<Texture> TerrainNode::get_texture4() const
 {
     return m_texture4;
 }
 
-void TerrainNode::set_scale(float scale)
+void TerrainNode::set_chunk_scale(const float scale)
 {
     m_scale = scale;
 
     _chunks_mark_all_dirty();
-    _update_chunks();
+    update_dirty_chunks();
 }
 
-float TerrainNode::get_scale()
+float TerrainNode::get_chunk_scale() const
 {
     return m_scale;
 }
 
-void TerrainNode::set_uv_scale(float scale)
+void TerrainNode::set_uv_scale(const float scale)
 {
     m_uv_scale = scale;
     VS::get_singleton()->material_set_param(m_material, "s", m_uv_scale);
@@ -185,34 +195,14 @@ float TerrainNode::get_uv_scale() const
     return m_uv_scale;
 }
 
-float TerrainNode::get_height_at(Vector3 pos)
+int TerrainNode::get_pixel_x_at(const Vector3 pos, const float offset) const
 {
-    if (m_heightmap.is_null()) {
-        return 0.0f;
-    }
-
-    int x = get_pixel_x_at(pos, 0.5);
-    int y = get_pixel_y_at(pos, 0.5);
-
-    if (x < 0) {
-        x = 0;
-    }
-
-    if (y < 0) {
-        x = 0;
-    }
-
-    return m_heightmap->get_height(x, y);
-}
-
-int TerrainNode::get_pixel_x_at(Vector3 pos, float offset)
-{
-    if (m_heightmap.is_null()) {
+    if (m_data.is_null()) {
         return 0;
     }
 
     int x = (pos.x + offset * m_scale) / m_scale;
-    int w = m_heightmap->get_size();
+    int w = m_data->get_size();
 
     if (x > w - 1) {
         x = w - 1;
@@ -221,14 +211,14 @@ int TerrainNode::get_pixel_x_at(Vector3 pos, float offset)
     return x;
 }
 
-int TerrainNode::get_pixel_y_at(Vector3 pos, float offset)
+int TerrainNode::get_pixel_y_at(const Vector3 pos, const float offset) const
 {
-    if (m_heightmap.is_null()) {
+    if (m_data.is_null()) {
         return 0;
     }
 
     int y = (pos.z + offset * m_scale) / m_scale;
-    int h = m_heightmap->get_size();
+    int h = m_data->get_size();
 
     if (y > h - 1) {
         y = h - 1;
@@ -237,34 +227,13 @@ int TerrainNode::get_pixel_y_at(Vector3 pos, float offset)
     return y;
 }
 
-void TerrainNode::modify_height_at(int x, int y, float height)
-{
-    if (m_heightmap.is_null()) {
-        return;
-    }
-
-    m_heightmap->set_height(x, y, height);
-
-    _mark_mesh_dirty(x, y);
-    _update_chunks();
-}
-
-void TerrainNode::modify_blendmap_at(int x, int y, Color c)
-{
-    if (m_heightmap.is_null()) {
-        return;
-    }
-
-    m_heightmap->set_blend(x, y, c);
-}
-
 int TerrainNode::get_chunk_offset_at(int x, int y)
 {
     return (y / m_chunk_size) * m_chunk_count + (x / m_chunk_size);
 }
 
 // mark chunks dirty that contain point
-void TerrainNode::_mark_mesh_dirty(int x, int y)
+void TerrainNode::mark_height_dirty(int x, int y)
 {
     DVector<Chunk>::Write w = m_chunks.write();
 
@@ -306,56 +275,6 @@ bool TerrainNode::is_hmap_pixel_inside_chunk(int offset, int x, int y)
     return false;
 }
 
-void TerrainNode::blit(DVector<float>& pixels, int x1, int y1, int x2, int y2)
-{
-    m_heightmap->blit_height(pixels, x1, y1, x2, y2);
-
-    _mark_mesh_dirty(x1, y1);
-    _mark_mesh_dirty(x2, y1);
-    _mark_mesh_dirty(x1, y2);
-    _mark_mesh_dirty(x2, y2);
-
-    _update_chunks();
-}
-
-void TerrainNode::blend(DVector<float> &pixels, int x1, int y1, int x2, int y2, float alpha)
-{
-    m_heightmap->blend_height(pixels, x1, y1, x2, y2, alpha);
-
-    _mark_mesh_dirty(x1, y1);
-    _mark_mesh_dirty(x2, y1);
-    _mark_mesh_dirty(x1, y2);
-    _mark_mesh_dirty(x2, y2);
-
-    _update_chunks();
-}
-
-Point2i TerrainNode::local_to_blendmap(Vector3 pos)
-{
-    /*
-    if (m_blendmap.is_null()) {
-        return Point2i(0,0);
-    }
-
-    int x = (pos.x * m_scale) / m_scale;
-    int y = (pos.x * m_scale) / m_scale;
-
-    return Point2i(x, y);
-    */
-}
-
-Point2i TerrainNode::local_to_heightmap(Vector3 pos)
-{
-    if (m_heightmap.is_null()) {
-        return Point2i(0, 0);
-    }
-
-    int x = (pos.x + 0.5 * m_scale) / m_scale;
-    int y = (pos.z + 0.5 * m_scale) / m_scale;
-
-    return Point2i(x, y);
-}
-
 void TerrainNode::_update_chunk_mesh(int ch_offset)
 {
     Array arr;
@@ -364,7 +283,7 @@ void TerrainNode::_update_chunk_mesh(int ch_offset)
     DVector<Vector2> uvs;
     DVector<int> indices;
 
-    int map_size = m_heightmap->get_size();
+    int map_size = m_data->get_size();
 
     // get chunk coords
     int chunk_y = ch_offset / m_chunk_count;
@@ -375,7 +294,7 @@ void TerrainNode::_update_chunk_mesh(int ch_offset)
     // chunk xy to height map xy
     map_x1 = chunk_x * m_chunk_size;
     map_y1 = chunk_y * m_chunk_size;
-    map_x2 = map_x1 + m_chunk_size + 1; // chunks share vertices on edges
+    map_x2 = map_x1 + m_chunk_size + 1;
     map_y2 = map_y1 + m_chunk_size + 1;
 
     /* build vertex array */
@@ -388,14 +307,15 @@ void TerrainNode::_update_chunk_mesh(int ch_offset)
     DVector<Vector3>::Write pointsw = points.write();
     DVector<Vector2>::Write uvsw = uvs.write();
 
+    Clock clk;
+
     int counter = 0;
 
     for (int x = map_x1; x < map_x2; x++) {
         for (int y = map_y1; y < map_y2; y++) {
+            float h = m_data->get_height_at(x, y);
 
-            float height = m_heightmap->get_height(x, y);
-
-            Vector3 point = Vector3(x * m_scale, height * m_scale, y * m_scale);
+            Vector3 point = Vector3(x * m_scale, h * m_scale, y * m_scale);
             Vector2 uv = Vector2(x / (map_size - 1.0f), y / (map_size - 1.0f));
 
             pointsw[counter] = point;
@@ -407,6 +327,8 @@ void TerrainNode::_update_chunk_mesh(int ch_offset)
 
     pointsw = DVector<Vector3>::Write();
     uvsw = DVector<Vector2>::Write();
+
+    clk.check("vertex buffer gen");
 
     /* build index buffer */
 
@@ -438,6 +360,8 @@ void TerrainNode::_update_chunk_mesh(int ch_offset)
 
     indicesw = DVector<int>::Write();
 
+    clk.check("index buffer gen");
+
     /* generate normals */
 
     normals.resize(vert_count);
@@ -462,6 +386,8 @@ void TerrainNode::_update_chunk_mesh(int ch_offset)
     }
 
     normalsw = DVector<Vector3>::Write();
+
+    clk.check("normal buffer gen");
 
     /* remove surface if exists */
 
@@ -491,6 +417,8 @@ void TerrainNode::_update_chunk_mesh(int ch_offset)
     cw[ch_offset].surface_added = true;
 
     cw = DVector<Chunk>::Write();
+
+    clk.check("array upload");
 }
 
 void TerrainNode::_create_chunk(int offset)
@@ -528,8 +456,7 @@ void TerrainNode::_update_chunk_transform(int offset)
     VS::get_singleton()->instance_set_transform(m_chunks[offset].instance, t);
 }
 
-// update dirty chunks
-void TerrainNode::_update_chunks()
+void TerrainNode::update_dirty_chunks()
 {
     uint32_t benchmark = OS::get_singleton()->get_ticks_msec();
 
@@ -546,7 +473,7 @@ void TerrainNode::_update_chunks()
 
     benchmark = OS::get_singleton()->get_ticks_msec() - benchmark;
 
-    print_line("TerrainNode::_update_chunks() benchmark:" + itos(benchmark));
+    print_line("TerrainNode::_update_dirty_chunks() benchmark:" + itos(benchmark));
 }
 
 void TerrainNode::_update_material()
@@ -564,12 +491,11 @@ void TerrainNode::_chunks_mark_all_dirty()
 
 void TerrainNode::_blendmap_changed()
 {
-
 }
 
 void TerrainNode::_heightmap_changed()
 {
-    if (m_heightmap.is_null()) {
+    if (m_data.is_null()) {
         if (m_chunks_created) {
             for (int i = 0; i < m_chunk_count * m_chunk_count; i++) {
                 _delete_chunk(i);
@@ -579,11 +505,11 @@ void TerrainNode::_heightmap_changed()
         return;
     }
 
-    int wmap_size = m_heightmap->get_size();
+    int wmap_size = m_data->get_size();
     m_chunk_count = wmap_size / m_chunk_size;
     m_chunks.resize(m_chunk_count * m_chunk_count);
 
-    VS::get_singleton()->material_set_param(m_material, "blendmap", m_heightmap->get_texture());
+    VS::get_singleton()->material_set_param(m_material, "blendmap", m_data->get_blends_texture());
 
     if (!is_inside_tree()) {
         return;
@@ -603,24 +529,23 @@ void TerrainNode::_heightmap_changed()
 
     m_chunks_created = true;
 
-    _update_chunks();
+    update_dirty_chunks();
 }
 
 void TerrainNode::_bind_methods()
 {
-    ObjectTypeDB::bind_method(_MD("set_heightmap", "TerrainHeightmap"), &TerrainNode::set_heightmap);
-    ObjectTypeDB::bind_method(_MD("get_heightmap"), &TerrainNode::get_heightmap);
-    ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "heightmap", PROPERTY_HINT_RESOURCE_TYPE, "TerrainHeightmap"), _SCS("set_heightmap"), _SCS("get_heightmap"));
+    ObjectTypeDB::bind_method(_MD("set_data", "TerrainData"), &TerrainNode::set_data);
+    ObjectTypeDB::bind_method(_MD("get_data"), &TerrainNode::get_data);
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "heightmap", PROPERTY_HINT_RESOURCE_TYPE, "TerrainData"), _SCS("set_data"), _SCS("get_data"));
 
-    ObjectTypeDB::bind_method(_MD("set_scale", "scale"), &TerrainNode::set_scale);
-    ObjectTypeDB::bind_method(_MD("get_scale"), &TerrainNode::get_scale);
-    ADD_PROPERTY(PropertyInfo(Variant::REAL, "scale"), _SCS("set_scale"), _SCS("get_scale"));
+    ObjectTypeDB::bind_method(_MD("set_chunk_scale", "scale"), &TerrainNode::set_chunk_scale);
+    ObjectTypeDB::bind_method(_MD("get_chunk_scale"), &TerrainNode::get_chunk_scale);
+    ADD_PROPERTY(PropertyInfo(Variant::REAL, "chunk_scale"), _SCS("set_chunk_scale"), _SCS("get_chunk_scale"));
 
     ObjectTypeDB::bind_method(_MD("set_uv_scale", "scale"), &TerrainNode::set_uv_scale);
     ObjectTypeDB::bind_method(_MD("get_uv_scale"), &TerrainNode::get_uv_scale);
     ADD_PROPERTY(PropertyInfo(Variant::REAL, "uv_scale"), _SCS("set_uv_scale"), _SCS("get_uv_scale"));
 
-    ObjectTypeDB::bind_method(_MD("get_height_at", "position"), &TerrainNode::get_height_at);
     ObjectTypeDB::bind_method(_MD("get_pixel_x_at", "position"), &TerrainNode::get_pixel_x_at);
     ObjectTypeDB::bind_method(_MD("get_pixel_y_at", "position"), &TerrainNode::get_pixel_y_at);
 
